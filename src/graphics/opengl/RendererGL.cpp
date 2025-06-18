@@ -27,6 +27,7 @@
 #include "TextureGL.h"
 #include "UniformBuffer.h"
 #include "VertexBufferGL.h"
+#include "VRSystem.h"
 
 #include "core/Log.h"
 #include "graphics/opengl/OpenGLLibs.h"
@@ -664,7 +665,11 @@ namespace Graphics {
 
 	RenderTarget *RendererOGL::GetRenderTarget()
 	{
-		return m_activeRenderTarget;
+		if (m_renderTargetOverride) {
+			return m_renderTargetOverride;
+		} else {
+			return m_activeRenderTarget;
+		}
 	}
 
 	bool RendererOGL::SetRenderTarget(RenderTarget *rt)
@@ -672,8 +677,14 @@ namespace Graphics {
 		PROFILE_SCOPED()
 		FlushCommandBuffers();
 
-		m_activeRenderTarget = static_cast<OGL::RenderTarget *>(rt);
+		if (m_renderTargetOverride) {
+			m_activeRenderTarget = static_cast<OGL::RenderTarget *>(m_renderTargetOverride);
+		} else {
+			m_activeRenderTarget = static_cast<OGL::RenderTarget *>(rt);
+		}
+
 		m_drawCommandList->AddRenderPassCmd(m_activeRenderTarget, m_viewport);
+
 		CheckRenderErrors(__FUNCTION__, __LINE__);
 
 		return true;
@@ -734,14 +745,23 @@ namespace Graphics {
 
 	bool RendererOGL::SetViewport(ViewportExtents v)
 	{
-		m_viewport = v;
+		if (m_viewportOverride.has_value()) {
+			m_viewport = m_viewportOverride.value();
+		} else {
+			m_viewport = v;
+		}
 		m_drawCommandList->AddRenderPassCmd(m_activeRenderTarget, m_viewport);
 		return true;
 	}
 
 	bool RendererOGL::SetTransform(const matrix4x4f &m)
 	{
-		m_modelViewMat = m;
+		if (VR::IsActive()) {
+			matrix4x4f vrMatrix = VR::GetEyeView(VR::ActiveEye());
+			m_modelViewMat = vrMatrix * m;
+		} else {
+			m_modelViewMat = m;
+		}
 		return true;
 	}
 
@@ -749,8 +769,15 @@ namespace Graphics {
 	{
 		PROFILE_SCOPED()
 
-		Graphics::SetFov(fov);
-		SetProjection(matrix4x4f::PerspectiveMatrix(DEG2RAD(fov), aspect, near_, far_));
+		if (VR::IsActive()) {
+			matrix4x4f matrix = VR::GetEyeProjection(VR::ActiveEye());
+
+			Graphics::SetFov(90.0f);
+			SetProjection(matrix);
+		} else {
+			Graphics::SetFov(fov);
+			SetProjection(matrix4x4f::PerspectiveMatrix(DEG2RAD(fov), aspect, near_, far_));
+		}
 		return true;
 	}
 

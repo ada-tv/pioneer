@@ -45,6 +45,7 @@
 #include "WorldView.h"
 #include "graphics/Types.h"
 #include "graphics/VertexBuffer.h"
+#include "VRSystem.h"
 
 #if WITH_OBJECTVIEWER
 #include "ObjectViewerView.h"
@@ -403,6 +404,8 @@ void Pi::App::OnStartup()
 	// Don't start the main menu if we don't have a GUI
 	if (!m_noGui)
 		QueueLifecycle(m_mainMenu);
+
+	VR::Init(Pi::renderer);
 
 	startupTimer.Stop();
 	Output("\n\nEngine startup took %.2fms\n", startupTimer.milliseconds());

@@ -9,6 +9,7 @@
 #include "StringName.h"
 #include "TaskGraph.h"
 #include "profiler/Profiler.h"
+#include "VRSystem.h"
 
 #include <SDL_timer.h>
 
@@ -191,7 +192,21 @@ void Application::Run()
 		// The PreUpdate hook should be used for setting up per-frame state, etc.
 		PreUpdate();
 
-		m_activeLifecycle->Update(m_deltaTime);
+		VR::Update();
+
+		if (VR::ShouldRender()) {
+			VR::BeginFrame();
+
+			for (int i = 0; i < 2; i++) {
+				VR::SetActiveEye(i);
+				VR::SetupRenderingForEye(i);
+				m_activeLifecycle->Update(m_deltaTime / 2.0);
+			}
+
+			VR::EndFrame();
+		} else {
+			m_activeLifecycle->Update(m_deltaTime);
+		}
 
 		HandleJobs();
 

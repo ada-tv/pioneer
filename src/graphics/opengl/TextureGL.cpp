@@ -296,6 +296,8 @@ namespace Graphics {
 			CHECKERRORS();
 		}
 
+		TextureGL::TextureGL(GLuint rawHandle, GLenum target, const TextureDescriptor &descriptor) : Texture(descriptor), m_target(target), m_texture(rawHandle), m_allocSize(0), m_useAnisoFiltering(false) {}
+
 		TextureGL::~TextureGL()
 		{
 			glDeleteTextures(1, &m_texture);

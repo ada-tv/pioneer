@@ -144,6 +144,7 @@ option(USE_SYSTEM_LIBGLEW "Use the system's libglew" OFF)
 option(USE_SYSTEM_LIBLUA "Use the system's liblua" OFF)
 option(PROFILER_ENABLED "Build pioneer with profiling support built-in." OFF)
 option(REMOTE_LUA_REPL "Enable remote LUA console" OFF)
+option(WITH_OPENXR "Enable OpenXR support" ON)
 
 if (REMOTE_LUA_REPL)
 	set(REMOTE_LUA_REPL_PORT 12345 CACHE STRING "TCP port for remote LUA console")
@@ -327,6 +328,13 @@ add_subdirectory(src/core)
 
 define_pioneer_library(pioneer-lib PIONEER_CXX_FILES PIONEER_HXX_FILES)
 target_link_libraries(pioneer-lib PUBLIC pioneer-core)
+
+if (WITH_OPENXR)
+    find_package(OpenXR REQUIRED)
+    find_package(X11 REQUIRED)
+    target_link_libraries(pioneer-lib PUBLIC X11 openxr_loader)
+    add_definitions(-DPIONEER_OPENXR=1)
+endif()
 
 add_subdirectory(src/lua)
 

@@ -12,6 +12,7 @@
 #include "Sfx.h"
 #include "Space.h"
 #include "SpaceStation.h"
+#include "VRSystem.h"
 
 #include "galaxy/StarSystem.h"
 #include "graphics/TextureBuilder.h"
@@ -88,8 +89,12 @@ void CameraContext::EndFrame()
 
 void CameraContext::ApplyDrawTransforms(Graphics::Renderer *r)
 {
-	Graphics::SetFov(m_fovAng);
-	r->SetProjection(GetProjectionMatrix());
+	if (VR::IsActive()) {
+		r->SetProjection(VR::GetEyeProjection(VR::ActiveEye()));
+	} else {
+		Graphics::SetFov(m_fovAng);
+		r->SetProjection(GetProjectionMatrix());
+	}
 	r->SetTransform(matrix4x4f::Identity);
 }
 

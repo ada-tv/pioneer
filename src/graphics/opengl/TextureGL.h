@@ -16,6 +16,7 @@ namespace Graphics {
 			void Update(const vecDataPtr &data, const vector3f &dataSize, const TextureFormat format, const unsigned int numMips) final;
 
 			TextureGL(const TextureDescriptor &descriptor, const bool useCompressed, const bool useAnisoFiltering, const Uint16 numSamples = 0);
+			TextureGL(GLuint rawHandle, GLenum target, const TextureDescriptor &descriptor);
 			virtual ~TextureGL();
 
 			void Bind() final;
@@ -36,6 +37,10 @@ namespace Graphics {
 			}
 
 			uint32_t GetTextureMemSize() const final { return m_allocSize; }
+
+			void SetTextureID(GLuint texture) {
+				m_texture = texture;
+			}
 
 		private:
 			GLenum m_target;

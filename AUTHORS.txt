@@ -6,6 +6,7 @@ The Pioneer Developers are:
 * Aaron Lewis
 * Aaron Senese
 * Abram Hindle
+* Ada <ada@thingvellir.net>
 * Ae
 * Alan Briggs
 * Alan 'joonicks' Londa

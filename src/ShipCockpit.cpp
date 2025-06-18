@@ -10,6 +10,7 @@
 #include "WorldView.h"
 #include "graphics/Renderer.h"
 #include "ship/CameraController.h"
+#include "VRSystem.h"
 
 ShipCockpit::ShipCockpit(const std::string &modelName, Body *ship) :
 	m_ship(ship),
@@ -204,7 +205,13 @@ void ShipCockpit::RenderCockpit(Graphics::Renderer *renderer, const Camera *came
 	PROFILE_SCOPED()
 	renderer->ClearDepthBuffer();
 	Body::SetFrame(frameId);
-	Render(renderer, camera, m_translate, m_transform);
+	if (VR::IsActive()) {
+		auto translate = vector3d();
+		auto transform = matrix4x4d::Identity();
+		Render(renderer, camera, translate, transform);
+	} else {
+		Render(renderer, camera, m_translate, m_transform);
+	}
 	Body::SetFrame(FrameId::Invalid);
 }
 

@@ -117,6 +117,9 @@ namespace Graphics {
 
 		void RecordDrawStats(PrimitiveType pt, uint32_t numElements, uint32_t numInstances);
 
+		Graphics::RenderTarget *m_renderTargetOverride = nullptr;
+		std::optional<ViewportExtents> m_viewportOverride = {};
+
 	protected:
 		void PushState() final{};
 		void PopState() final{};

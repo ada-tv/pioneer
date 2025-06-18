@@ -12,6 +12,7 @@
 #include "graphics/TextureBuilder.h"
 #include "scenegraph/ModelSkin.h"
 #include "scenegraph/SceneGraph.h"
+#include "VRSystem.h"
 #include <algorithm>
 
 class PiRngWrapper {
@@ -149,7 +150,10 @@ void Intro::Draw(float deltaTime)
 
 	// XXX all this stuff will be gone when intro uses a Camera
 	// rotate background by time, and a bit extra Z so it's not so flat
-	matrix4x4d brot = matrix4x4d::RotateXMatrix(-0.25 * Pi::GetApp()->GetTime()) * matrix4x4d::RotateZMatrix(0.6);
+	matrix4x4d brot = matrix4x4d::Identity;
+	if (!VR::IsActive()) {
+		brot = matrix4x4d::RotateXMatrix(-0.25 * Pi::GetApp()->GetTime()) * matrix4x4d::RotateZMatrix(0.6);
+	}
 	m_renderer->ClearDepthBuffer();
 	m_background->Draw(brot);
 
@@ -159,7 +163,7 @@ void Intro::Draw(float deltaTime)
 	matrix4x4f trans =
 		matrix4x4f::Translation(0, 0, m_dist) *
 		matrix4x4f::RotateXMatrix(DEG2RAD(-15.0f)) *
-		matrix4x4f::RotateYMatrix(duration);
+		matrix4x4f::RotateYMatrix(VR::IsActive() ? duration * 0.2f : duration);
 
 	m_model->SetThrust(vector3f(0.3f * sin(duration), 0.f, -0.6 * cos(duration)), vector3f(0.f));
 	m_model->SetRenderTime(duration);
