@@ -16,9 +16,10 @@
 
 #pragma GCC diagnostic ignored "-Wmissing-field-initializers"
 
+VRSystem VR::m_system;
 bool VR::m_isActive = false;
 int VR::m_activeEye = 0;
-VRSystem VR::m_system;
+bool VR::m_isRenderingHud = false;
 
 using Graphics::OGL::TextureGL;
 using Graphics::TextureDescriptor;
@@ -27,8 +28,6 @@ VRSystem::VRSystem(Graphics::Renderer *renderer) :
 	m_renderer(renderer),
 	m_renderTexturesColor {
 		TextureGL(0, GL_TEXTURE_2D, TextureDescriptor()),
-		TextureGL(0, GL_TEXTURE_2D, TextureDescriptor()) },
-	m_renderTexturesDepth {
 		TextureGL(0, GL_TEXTURE_2D, TextureDescriptor()),
 		TextureGL(0, GL_TEXTURE_2D, TextureDescriptor()) } {
 }
@@ -37,8 +36,6 @@ VRSystem::VRSystem() :
 	m_renderer(nullptr),
 	m_renderTexturesColor {
 		TextureGL(0, GL_TEXTURE_2D, TextureDescriptor()),
-		TextureGL(0, GL_TEXTURE_2D, TextureDescriptor()) },
-	m_renderTexturesDepth {
 		TextureGL(0, GL_TEXTURE_2D, TextureDescriptor()),
 		TextureGL(0, GL_TEXTURE_2D, TextureDescriptor()) } {
 }
@@ -50,16 +47,19 @@ VRSystem::~VRSystem() {
 }
 
 matrix4x4f VRSystem::GetProjection(int eye) {
+	constexpr float nearZ = 0.05f;
+
 	// the eye indices need to be reversed?
 	eye = 1 - eye;
 
-	// D3D matrix because we're using Y-up, 0,1 NDC rather than Y-up -1,1 NDC
+	// D3D matrix because we're using Y-up, 0,1 NDC rather than Y-up -1,1 NDC,
+	// far can be any negative number and CreateProjectionFov will make an infinite projection
 	XrMatrix4x4f proj;
-	XrMatrix4x4f_CreateProjectionFov(&proj, GRAPHICS_D3D, m_views[eye].fov, 0.05f, -1000.0f);
+	XrMatrix4x4f_CreateProjectionFov(&proj, GRAPHICS_D3D, m_views[eye].fov, nearZ, -1000.0f);
 
 	// weird magic that has to be here or the depth breaks
 	proj.m[10] = 0.0f;
-	proj.m[14] = 0.05f;
+	proj.m[14] = nearZ;
 
 	return matrix4x4f(proj.m);
 }
@@ -80,26 +80,6 @@ bool VRSystem::Init() {
 
 	if (!CreateSession()) { return false; }
 
-	uint32_t viewConfigCount = 2;
-	result = xrEnumerateViewConfigurationViews(m_xrInstance, m_xrSystemID, XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO, viewConfigCount, &viewConfigCount, m_configViews);
-	if (result) {
-		char buffer[XR_MAX_RESULT_STRING_SIZE];
-		xrResultToString(m_xrInstance, result, buffer);
-		Log::Fatal("xrEnumerateViewConfigurationViews: {}", buffer);
-		return false;
-	}
-
-	if (!CreateSwapchains()) { return false; }
-
-	for (int i = 0; i < 2; i++) {
-		m_projectionLayerViews[i].subImage.swapchain = m_colorSwapchains[i];
-		m_projectionLayerViews[i].subImage.imageArrayIndex = 0;
-		m_projectionLayerViews[i].subImage.imageRect.offset.x = 0;
-		m_projectionLayerViews[i].subImage.imageRect.offset.y = 0;
-		m_projectionLayerViews[i].subImage.imageRect.extent.width = m_configViews[i].recommendedImageRectWidth;
-		m_projectionLayerViews[i].subImage.imageRect.extent.height = m_configViews[i].recommendedImageRectHeight;
-	}
-
 	XrReferenceSpaceCreateInfo spaceInfo = {
 		XR_TYPE_REFERENCE_SPACE_CREATE_INFO,
 		nullptr,
@@ -114,8 +94,47 @@ bool VRSystem::Init() {
 		return false;
 	}
 
-	VR::m_isActive = true;
+	uint32_t viewConfigCount = 2;
+	result = xrEnumerateViewConfigurationViews(m_xrInstance, m_xrSystemID, XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO, viewConfigCount, &viewConfigCount, m_configViews);
+	if (result) {
+		char buffer[XR_MAX_RESULT_STRING_SIZE];
+		xrResultToString(m_xrInstance, result, buffer);
+		Log::Fatal("xrEnumerateViewConfigurationViews: {}", buffer);
+		return false;
+	}
 
+	if (!CreateSwapchains()) { return false; }
+
+	// eye views
+	for (int i = 0; i < RENDER_TARGET_EYE_COUNT; i++) {
+		m_projectionLayerViews[i].subImage.swapchain = m_colorSwapchains[i];
+		m_projectionLayerViews[i].subImage.imageArrayIndex = 0;
+		m_projectionLayerViews[i].subImage.imageRect.offset.x = 0;
+		m_projectionLayerViews[i].subImage.imageRect.offset.y = 0;
+		m_projectionLayerViews[i].subImage.imageRect.extent.width = m_configViews[i].recommendedImageRectWidth;
+		m_projectionLayerViews[i].subImage.imageRect.extent.height = m_configViews[i].recommendedImageRectHeight;
+	}
+
+	// hud quad layer
+	m_hudLayerView.size.width = hudLayerSize[0];
+	m_hudLayerView.size.height = hudLayerSize[1];
+	m_hudLayerView.eyeVisibility = XR_EYE_VISIBILITY_BOTH;
+	m_hudLayerView.layerFlags = XR_COMPOSITION_LAYER_BLEND_TEXTURE_SOURCE_ALPHA_BIT;
+	m_hudLayerView.pose.orientation = { 0.0f, 0.0f, 0.0f, 1.0f };
+	m_hudLayerView.pose.position = { 0.0f, 0.0f, -1.0f };
+	m_hudLayerView.subImage.swapchain = m_colorSwapchains[TARGET_HUD];
+	m_hudLayerView.subImage.imageArrayIndex = 0;
+	m_hudLayerView.subImage.imageRect.offset.x = 0;
+	m_hudLayerView.subImage.imageRect.offset.y = 0;
+	m_hudLayerView.subImage.imageRect.extent.width = hudResolution[0];
+	m_hudLayerView.subImage.imageRect.extent.height = hudResolution[1];
+	m_hudLayerView.space = m_refSpace;
+
+	// don't vsync to monitor refresh rate,
+	// openxr handles sync for us
+	m_renderer->SetVSyncEnabled(false);
+
+	VR::m_isActive = true;
 	return true;
 }
 
@@ -185,7 +204,8 @@ bool VRSystem::CreateSession() {
 }
 
 bool VRSystem::CreateSwapchains() {
-	for (int i = 0; i < 2; i++) {
+	// eye swapchains
+	for (int i = 0; i < RENDER_TARGET_EYE_COUNT; i++) {
 		XrSwapchainCreateInfo swapchainInfo = {XR_TYPE_SWAPCHAIN_CREATE_INFO};
 		swapchainInfo.usageFlags = XR_SWAPCHAIN_USAGE_COLOR_ATTACHMENT_BIT | XR_SWAPCHAIN_USAGE_SAMPLED_BIT;
 		swapchainInfo.format = GL_SRGB8_ALPHA8;
@@ -204,25 +224,12 @@ bool VRSystem::CreateSwapchains() {
 			return false;
 		}
 
-		swapchainInfo.usageFlags = XR_SWAPCHAIN_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | XR_SWAPCHAIN_USAGE_SAMPLED_BIT;
-		swapchainInfo.format = GL_DEPTH_COMPONENT32F;
-		result = xrCreateSwapchain(m_xrSession, &swapchainInfo, &m_depthSwapchains[i]);
-		if (result) {
-			char buffer[XR_MAX_RESULT_STRING_SIZE];
-			xrResultToString(m_xrInstance, result, buffer);
-			Log::Fatal("xrCreateSwapchain: {}", buffer);
-			return false;
-		}
-
-		uint32_t colorImgCount, depthImgCount;
+		uint32_t colorImgCount;
 		xrEnumerateSwapchainImages(m_colorSwapchains[i], 0, &colorImgCount, nullptr);
-		xrEnumerateSwapchainImages(m_depthSwapchains[i], 0, &depthImgCount, nullptr);
 
 		m_colorImages[i].resize(colorImgCount, {XR_TYPE_SWAPCHAIN_IMAGE_OPENGL_KHR});
-		m_depthImages[i].resize(depthImgCount, {XR_TYPE_SWAPCHAIN_IMAGE_OPENGL_KHR});
 
 		xrEnumerateSwapchainImages(m_colorSwapchains[i], colorImgCount, &colorImgCount, reinterpret_cast<XrSwapchainImageBaseHeader *>(m_colorImages[i].data()));
-		xrEnumerateSwapchainImages(m_depthSwapchains[i], depthImgCount, &depthImgCount, reinterpret_cast<XrSwapchainImageBaseHeader *>(m_depthImages[i].data()));
 
 		Graphics::RenderTargetDesc rtDesc(
 			swapchainInfo.width,
@@ -235,6 +242,43 @@ bool VRSystem::CreateSwapchains() {
 
 		m_renderTargets[i] = m_renderer->CreateRenderTarget(rtDesc);
 	}
+
+	// hud swapchain
+	XrSwapchainCreateInfo swapchainInfo = {XR_TYPE_SWAPCHAIN_CREATE_INFO};
+	swapchainInfo.usageFlags = XR_SWAPCHAIN_USAGE_COLOR_ATTACHMENT_BIT | XR_SWAPCHAIN_USAGE_SAMPLED_BIT;
+	swapchainInfo.format = GL_SRGB8_ALPHA8;
+	swapchainInfo.sampleCount = 1;
+	swapchainInfo.width = hudResolution[0];
+	swapchainInfo.height = hudResolution[1];
+	swapchainInfo.faceCount = 1;
+	swapchainInfo.arraySize = 1;
+	swapchainInfo.mipCount = 1;
+
+	XrResult result = xrCreateSwapchain(m_xrSession, &swapchainInfo, &m_colorSwapchains[TARGET_HUD]);
+	if (result) {
+		char buffer[XR_MAX_RESULT_STRING_SIZE];
+		xrResultToString(m_xrInstance, result, buffer);
+		Log::Fatal("xrCreateSwapchain: {}", buffer);
+		return false;
+	}
+
+	uint32_t colorImgCount;
+	xrEnumerateSwapchainImages(m_colorSwapchains[TARGET_HUD], 0, &colorImgCount, nullptr);
+
+	m_colorImages[TARGET_HUD].resize(colorImgCount, {XR_TYPE_SWAPCHAIN_IMAGE_OPENGL_KHR});
+
+	xrEnumerateSwapchainImages(m_colorSwapchains[TARGET_HUD], colorImgCount, &colorImgCount, reinterpret_cast<XrSwapchainImageBaseHeader *>(m_colorImages[TARGET_HUD].data()));
+
+	Graphics::RenderTargetDesc rtDesc(
+		swapchainInfo.width,
+		swapchainInfo.height,
+		Graphics::TextureFormat::TEXTURE_NONE,
+		Graphics::TextureFormat::TEXTURE_DEPTH,
+		false,
+		0
+	);
+
+	m_renderTargets[TARGET_HUD] = m_renderer->CreateRenderTarget(rtDesc);
 
 	return true;
 }
@@ -264,34 +308,31 @@ void VRSystem::BeginFrame() {
 		Log::Fatal("xrLocateViews: {}", buffer);
 	}
 
-	for (int i = 0; i < 2; i++) {
-		m_projectionLayerViews[i].pose = m_views[i].pose;
-		m_projectionLayerViews[i].fov = m_views[i].fov;
+	for (int i = 0; i < RENDER_TARGET_COUNT; i++) {
+		// only update the poses for the eye views, not the hud
+		if (i < RENDER_TARGET_EYE_COUNT) {
+			m_projectionLayerViews[i].pose = m_views[i].pose;
+			m_projectionLayerViews[i].fov = m_views[i].fov;
+		}
 
-		uint32_t colorImageIndex, depthImageIndex;
+		uint32_t colorImageIndex;
 		XrSwapchainImageAcquireInfo acquireInfo = {XR_TYPE_SWAPCHAIN_IMAGE_ACQUIRE_INFO};
 		XrSwapchainImageWaitInfo waitInfo = {XR_TYPE_SWAPCHAIN_IMAGE_WAIT_INFO};
 
 		xrAcquireSwapchainImage(m_colorSwapchains[i], &acquireInfo, &colorImageIndex);
-		xrAcquireSwapchainImage(m_depthSwapchains[i], &acquireInfo, &depthImageIndex);
-
 		xrWaitSwapchainImage(m_colorSwapchains[i], &waitInfo);
-		xrWaitSwapchainImage(m_depthSwapchains[i], &waitInfo);
 
 		m_renderTexturesColor[i].SetTextureID(m_colorImages[i][colorImageIndex].image);
-		m_renderTexturesDepth[i].SetTextureID(m_depthImages[i][depthImageIndex].image);
 		m_renderTargets[i]->SetColorTexture(&m_renderTexturesColor[i]);
-		//m_renderTargets[i]->SetDepthTexture(&m_renderTexturesDepth[i]);
 	}
 }
 
 void VRSystem::EndFrame() {
 	if (!m_readyToRender) { return; }
 
-	for (int i = 0; i < 2; i++) {
+	for (int i = 0; i < RENDER_TARGET_COUNT; i++) {
 		XrSwapchainImageReleaseInfo releaseInfo = {XR_TYPE_SWAPCHAIN_IMAGE_RELEASE_INFO};
 		xrReleaseSwapchainImage(m_colorSwapchains[i], &releaseInfo);
-		xrReleaseSwapchainImage(m_depthSwapchains[i], &releaseInfo);
 	}
 
 	XrCompositionLayerProjection projectionLayer = {
@@ -305,6 +346,7 @@ void VRSystem::EndFrame() {
 
 	XrCompositionLayerBaseHeader *layers[] = {
 		reinterpret_cast<XrCompositionLayerBaseHeader *>(&projectionLayer),
+		reinterpret_cast<XrCompositionLayerBaseHeader *>(&m_hudLayerView),
 	};
 
 	XrFrameEndInfo frameEndInfo = {
@@ -312,7 +354,7 @@ void VRSystem::EndFrame() {
 		nullptr,
 		m_frameState.predictedDisplayTime,
 		XR_ENVIRONMENT_BLEND_MODE_OPAQUE,
-		ShouldRender() ? 1u : 0u,
+		ShouldRender() ? 2u : 0u,
 		layers
 	};
 
@@ -406,4 +448,12 @@ void VRSystem::SetupRenderingForEye(int eye) {
 		m_projectionLayerViews[eye].subImage.imageRect.extent.height
 	);
 	renderer.m_renderTargetOverride = m_renderTargets[eye];
+}
+
+void VRSystem::SetupRenderingForHUD() {
+	auto &renderer = *static_cast<Graphics::RendererOGL *>(m_renderer);
+	renderer.m_viewportOverride = Graphics::ViewportExtents(
+		0, 0, hudResolution[0], hudResolution[1]
+	);
+	renderer.m_renderTargetOverride = m_renderTargets[TARGET_HUD];
 }

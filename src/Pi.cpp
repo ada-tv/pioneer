@@ -610,6 +610,8 @@ void StartupScreen::Update(float deltaTime)
 {
 	PROFILE_SCOPED()
 
+	VR::SetupRenderingForHUD();
+
 	// if we have queued jobs from the current loader step and they're all done, finish up
 	if (m_hasQueuedJobs && currentStepQueue->IsEmpty())
 		FinishLoadStep();
@@ -626,6 +628,8 @@ void StartupScreen::Update(float deltaTime)
 	PiGui::EmitEvents();
 	PiGui::RunHandler(GetProgress(), "init");
 	Pi::pigui->Render();
+
+	VR::SetupRenderingForEye(VR::ActiveEye());
 }
 
 void StartupScreen::RunNewLoader()
@@ -696,6 +700,8 @@ void MainMenu::Update(float deltaTime)
 
 	Pi::intro->Draw(deltaTime);
 
+	VR::SetupRenderingForHUD();
+
 	LuaEvent::Emit();
 
 	Pi::pigui->NewFrame();
@@ -721,6 +727,8 @@ void MainMenu::Update(float deltaTime)
 #ifdef ENABLE_SERVER_AGENT
 	Pi::serverAgent->ProcessResponses();
 #endif
+
+	VR::SetupRenderingForEye(VR::ActiveEye());
 }
 
 void MainMenu::End()
@@ -1046,6 +1054,8 @@ void GameLoop::Update(float deltaTime)
 		ImGui::SetMouseCursor(ImGuiMouseCursor_None);
 	}
 
+	VR::SetupRenderingForHUD();
+
 	// TODO: the escape menu depends on HandleEvents() being called before NewFrame()
 	// Move HandleEvents to either the end of the loop or the very start of the loop
 	// The goal is to be able to call imgui functions for debugging inside C++ code
@@ -1125,6 +1135,8 @@ void GameLoop::Update(float deltaTime)
 		fwrite(sd.pixels.get(), sizeof(uint32_t) * Pi::renderer->GetWindowWidth() * Pi::renderer->GetWindowHeight(), 1, Pi::ffmpegFile);
 	}
 #endif
+
+	VR::SetupRenderingForEye(VR::ActiveEye());
 }
 
 void GameLoop::End()

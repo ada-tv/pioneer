@@ -54,6 +54,7 @@ public:
 	matrix4x4f GetProjection(int eye);
 	matrix4x4f GetView(int eye);
 	void SetupRenderingForEye(int eye);
+	void SetupRenderingForHUD();
 
 	bool Init();
 	void Update();
@@ -66,11 +67,20 @@ public:
 	void SetRenderer(Graphics::Renderer *renderer) { m_renderer = renderer; }
 
 protected:
+	static constexpr int hudResolution[2] = {1280, 720};
+	static constexpr float hudLayerSize[2] = {2.0f, 2.0f / (16.0f / 9.0f)};
+
+	static constexpr int RENDER_TARGET_COUNT = 3;
+	static constexpr int RENDER_TARGET_EYE_COUNT = 2;
+	static constexpr int TARGET_LEFT = 0;
+	static constexpr int TARGET_RIGHT = 1;
+	static constexpr int TARGET_HUD = 2;
+
 	bool CreateSession();
 	bool CreateSwapchains();
 
 	Graphics::Renderer *m_renderer;
-	Graphics::RenderTarget *m_renderTargets[2];
+	Graphics::RenderTarget *m_renderTargets[RENDER_TARGET_COUNT];
 
 	bool m_readyToRender = false;
 
@@ -86,17 +96,15 @@ protected:
 	XrFrameState m_frameState = {XR_TYPE_FRAME_STATE};
 
 	XrViewState m_viewState = {XR_TYPE_VIEW_STATE};
-	XrView m_views[2] = {{XR_TYPE_VIEW}, {XR_TYPE_VIEW}};
-	XrCompositionLayerProjectionView m_projectionLayerViews[2] = {{XR_TYPE_COMPOSITION_LAYER_PROJECTION_VIEW}, {XR_TYPE_COMPOSITION_LAYER_PROJECTION_VIEW}};
-	XrViewConfigurationView m_configViews[2] = {{XR_TYPE_VIEW_CONFIGURATION_VIEW}, {XR_TYPE_VIEW_CONFIGURATION_VIEW}};
+	XrView m_views[RENDER_TARGET_EYE_COUNT] = {{XR_TYPE_VIEW}, {XR_TYPE_VIEW}};
+	XrViewConfigurationView m_configViews[RENDER_TARGET_EYE_COUNT] = {{XR_TYPE_VIEW_CONFIGURATION_VIEW}, {XR_TYPE_VIEW_CONFIGURATION_VIEW}};
+	XrCompositionLayerProjectionView m_projectionLayerViews[RENDER_TARGET_EYE_COUNT] = {{XR_TYPE_COMPOSITION_LAYER_PROJECTION_VIEW}, {XR_TYPE_COMPOSITION_LAYER_PROJECTION_VIEW}};
+	XrCompositionLayerQuad m_hudLayerView = {XR_TYPE_COMPOSITION_LAYER_QUAD};
 
-	XrSwapchain m_colorSwapchains[2];
-	XrSwapchain m_depthSwapchains[2];
-	std::vector<XrSwapchainImageOpenGLKHR> m_colorImages[2];
-	std::vector<XrSwapchainImageOpenGLKHR> m_depthImages[2];
+	XrSwapchain m_colorSwapchains[RENDER_TARGET_COUNT];
+	std::vector<XrSwapchainImageOpenGLKHR> m_colorImages[RENDER_TARGET_COUNT];
 
-	Graphics::OGL::TextureGL m_renderTexturesColor[2];
-	Graphics::OGL::TextureGL m_renderTexturesDepth[2];
+	Graphics::OGL::TextureGL m_renderTexturesColor[RENDER_TARGET_COUNT];
 };
 
 class VR {
@@ -112,7 +120,17 @@ public:
 
 	static void EndFrame() { m_system.EndFrame(); }
 
-	static void SetupRenderingForEye(int eye) { m_system.SetupRenderingForEye(eye); }
+	static void SetupRenderingForEye(int eye) {
+		m_isRenderingHud = false;
+		m_system.SetupRenderingForEye(eye);
+	}
+
+	static void SetupRenderingForHUD() {
+		m_isRenderingHud = true;
+		m_system.SetupRenderingForHUD();
+	}
+
+	static bool IsRenderingHUD() { return m_isRenderingHud; }
 
 	static bool ShouldRender() { return m_isActive && m_system.ShouldRender(); }
 
@@ -133,6 +151,7 @@ private:
 
 	static bool m_isActive;
 	static int m_activeEye;
+	static bool m_isRenderingHud;
 };
 
 #pragma GCC diagnostic pop

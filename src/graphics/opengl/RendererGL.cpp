@@ -756,7 +756,7 @@ namespace Graphics {
 
 	bool RendererOGL::SetTransform(const matrix4x4f &m)
 	{
-		if (VR::IsActive()) {
+		if (VR::IsActive() && !VR::IsRenderingHUD()) {
 			matrix4x4f vrMatrix = VR::GetEyeView(VR::ActiveEye());
 			m_modelViewMat = vrMatrix * m;
 		} else {
@@ -769,7 +769,7 @@ namespace Graphics {
 	{
 		PROFILE_SCOPED()
 
-		if (VR::IsActive()) {
+		if (VR::IsActive() && !VR::IsRenderingHUD()) {
 			matrix4x4f matrix = VR::GetEyeProjection(VR::ActiveEye());
 
 			Graphics::SetFov(90.0f);
