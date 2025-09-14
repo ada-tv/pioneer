@@ -41,16 +41,10 @@ VRSystem::VRSystem() :
 }
 
 VRSystem::~VRSystem() {
-	xrDestroySpace(m_refSpace);
-	xrDestroySession(m_xrSession);
-	xrDestroyInstance(m_xrInstance);
 }
 
 matrix4x4f VRSystem::GetProjection(int eye) {
 	constexpr float nearZ = 0.05f;
-
-	// the eye indices need to be reversed?
-	eye = 1 - eye;
 
 	// D3D matrix because we're using Y-up, 0,1 NDC rather than Y-up -1,1 NDC,
 	// far can be any negative number and CreateProjectionFov will make an infinite projection
@@ -65,8 +59,6 @@ matrix4x4f VRSystem::GetProjection(int eye) {
 }
 
 matrix4x4f VRSystem::GetView(int eye) {
-	eye = 1 - eye;
-
 	XrVector3f scale = {1.0f, 1.0f, 1.0f};
 	XrMatrix4x4f view, toView;
 	XrMatrix4x4f_CreateTranslationRotationScale(&toView, &m_views[eye].pose.position, &m_views[eye].pose.orientation, &scale);
@@ -126,8 +118,8 @@ bool VRSystem::Init() {
 	m_hudLayerView.subImage.imageArrayIndex = 0;
 	m_hudLayerView.subImage.imageRect.offset.x = 0;
 	m_hudLayerView.subImage.imageRect.offset.y = 0;
-	m_hudLayerView.subImage.imageRect.extent.width = hudResolution[0];
-	m_hudLayerView.subImage.imageRect.extent.height = hudResolution[1];
+	m_hudLayerView.subImage.imageRect.extent.width = VR::hudResolution[0];
+	m_hudLayerView.subImage.imageRect.extent.height = VR::hudResolution[1];
 	m_hudLayerView.space = m_refSpace;
 
 	// don't vsync to monitor refresh rate,
@@ -248,8 +240,8 @@ bool VRSystem::CreateSwapchains() {
 	swapchainInfo.usageFlags = XR_SWAPCHAIN_USAGE_COLOR_ATTACHMENT_BIT | XR_SWAPCHAIN_USAGE_SAMPLED_BIT;
 	swapchainInfo.format = GL_SRGB8_ALPHA8;
 	swapchainInfo.sampleCount = 1;
-	swapchainInfo.width = hudResolution[0];
-	swapchainInfo.height = hudResolution[1];
+	swapchainInfo.width = VR::hudResolution[0];
+	swapchainInfo.height = VR::hudResolution[1];
 	swapchainInfo.faceCount = 1;
 	swapchainInfo.arraySize = 1;
 	swapchainInfo.mipCount = 1;
@@ -324,7 +316,47 @@ void VRSystem::BeginFrame() {
 
 		m_renderTexturesColor[i].SetTextureID(m_colorImages[i][colorImageIndex].image);
 		m_renderTargets[i]->SetColorTexture(&m_renderTexturesColor[i]);
+
+		m_renderer->SetRenderTarget(m_renderTargets[i]);
+		m_renderer->ClearScreen(Color(0, 0, 0, 0), true);
 	}
+}
+
+void VRSystem::DrawDesktopMirror() {
+	// FIXME: can't scale unresolved MSAA targets
+	// and even the hud doesn't get copied
+#if 0
+	// copy to the desktop window
+	auto desktop_rt = Pi::GetApp()->GetRenderTarget();
+
+	auto desktop_rt_desc = desktop_rt->GetDesc();
+
+	auto left_desc = m_renderTargets[TARGET_LEFT]->GetDesc();
+	auto right_desc = m_renderTargets[TARGET_LEFT]->GetDesc();
+
+	m_renderer->CopyRenderTarget(
+		m_renderTargets[TARGET_LEFT],
+		desktop_rt,
+		{0, 0, left_desc.width, left_desc.height},
+		{0, 0, left_desc.width, left_desc.height}
+	);
+
+	m_renderer->CopyRenderTarget(
+		m_renderTargets[TARGET_RIGHT],
+		desktop_rt,
+		{0, 0, right_desc.width, right_desc.height},
+		{0, 0, right_desc.width, right_desc.height}
+	);
+
+	m_renderer->CopyRenderTarget(
+		m_renderTargets[TARGET_HUD],
+		desktop_rt,
+		{0, 0, VR::hudResolution[0], VR::hudResolution[1]},
+		{0, 0, VR::hudResolution[0], VR::hudResolution[1]}
+	);
+
+	m_renderer->FlushCommandBuffers();
+#endif
 }
 
 void VRSystem::EndFrame() {
@@ -448,12 +480,16 @@ void VRSystem::SetupRenderingForEye(int eye) {
 		m_projectionLayerViews[eye].subImage.imageRect.extent.height
 	);
 	renderer.m_renderTargetOverride = m_renderTargets[eye];
+	renderer.SetRenderTarget(renderer.m_renderTargetOverride);
+	renderer.SetViewport(*renderer.m_viewportOverride);
 }
 
 void VRSystem::SetupRenderingForHUD() {
 	auto &renderer = *static_cast<Graphics::RendererOGL *>(m_renderer);
 	renderer.m_viewportOverride = Graphics::ViewportExtents(
-		0, 0, hudResolution[0], hudResolution[1]
+		0, 0, VR::hudResolution[0], VR::hudResolution[1]
 	);
 	renderer.m_renderTargetOverride = m_renderTargets[TARGET_HUD];
+	renderer.SetRenderTarget(renderer.m_renderTargetOverride);
+	renderer.SetViewport(*renderer.m_viewportOverride);
 }

@@ -91,11 +91,12 @@ void CameraContext::ApplyDrawTransforms(Graphics::Renderer *r)
 {
 	if (VR::IsActive()) {
 		r->SetProjection(VR::GetEyeProjection(VR::ActiveEye()));
+		r->SetTransform(VR::GetEyeView(VR::ActiveEye()));;
 	} else {
 		Graphics::SetFov(m_fovAng);
 		r->SetProjection(GetProjectionMatrix());
+		r->SetTransform(matrix4x4f::Identity);
 	}
-	r->SetTransform(matrix4x4f::Identity);
 }
 
 bool Camera::BodyAttrs::sort_BodyAttrs(const BodyAttrs &a, const BodyAttrs &b)

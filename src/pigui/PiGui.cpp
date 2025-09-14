@@ -6,6 +6,7 @@
 #include "JsonUtils.h"
 #include "Pi.h"
 #include "PiGuiRenderer.h"
+#include "../VRSystem.h"
 
 #include "core/Log.h"
 #include "core/TaskGraph.h"
@@ -623,6 +624,11 @@ void Instance::NewFrame()
 void Instance::EndFrame()
 {
 	PROFILE_SCOPED()
+
+	if (VR::IsActive()) {
+		auto mouse_pos = ImGui::GetMousePos();
+		ImGui::RenderMouseCursor(mouse_pos, 1.0f, ImGuiMouseCursor_Arrow, 0xffffffff, 0xff000000, 0xff000000);
+	}
 
 	// Explicitly end frame, to show tooltips. Otherwise, they are shown at the next NextFrame,
 	// which might crash because the font atlas was rebuilt, and the old fonts were cached inside imgui.

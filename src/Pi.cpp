@@ -716,7 +716,11 @@ void MainMenu::Update(float deltaTime)
 		Pi::pigui->SetNormalStyle();
 	}
 
-	Pi::renderer->ClearDepthBuffer();
+	if (VR::IsActive()) {
+		Pi::renderer->ClearScreen(Color(0, 0, 0, 0), true);
+	} else {
+		Pi::renderer->ClearDepthBuffer();
+	}
 	Pi::pigui->Render();
 	Sound::Update(deltaTime);
 
@@ -1083,7 +1087,11 @@ void GameLoop::Update(float deltaTime)
 	Pi::GetApp()->DispatchEvents();
 
 	// Reset the depth buffer so our UI can get drawn right overtop
-	Pi::renderer->ClearDepthBuffer();
+	if (VR::IsActive()) {
+		Pi::renderer->ClearScreen(Color(0, 0, 0, 0), true);
+	} else {
+		Pi::renderer->ClearDepthBuffer();
+	}
 	Pi::pigui->Render();
 
 	perfTimer.SoftStop();
@@ -1191,6 +1199,8 @@ void TombstoneLoop::Start()
 void TombstoneLoop::Update(float deltaTime)
 {
 	Pi::GetApp()->HandleEvents();
+
+	VR::SetupRenderingForHUD();
 
 	// TODO: improve Tombstone, add pigui drawing, etc.
 	tombstone->Draw(accumTime);

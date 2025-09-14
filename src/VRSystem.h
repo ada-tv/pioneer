@@ -8,7 +8,6 @@
 
 #include "graphics/opengl/TextureGL.h"
 
-#include <optional>
 #include <vector>
 
 #if defined(_WIN32)
@@ -55,6 +54,7 @@ public:
 	matrix4x4f GetView(int eye);
 	void SetupRenderingForEye(int eye);
 	void SetupRenderingForHUD();
+	void DrawDesktopMirror();
 
 	bool Init();
 	void Update();
@@ -67,7 +67,6 @@ public:
 	void SetRenderer(Graphics::Renderer *renderer) { m_renderer = renderer; }
 
 protected:
-	static constexpr int hudResolution[2] = {1280, 720};
 	static constexpr float hudLayerSize[2] = {2.0f, 2.0f / (16.0f / 9.0f)};
 
 	static constexpr int RENDER_TARGET_COUNT = 3;
@@ -109,6 +108,8 @@ protected:
 
 class VR {
 public:
+	static constexpr int hudResolution[2] = {1280, 720};
+
 	static void Init(Graphics::Renderer *renderer) {
 		m_system.SetRenderer(renderer);
 		m_system.Init();
@@ -117,6 +118,8 @@ public:
 	static void Update() { m_system.Update(); }
 
 	static void BeginFrame() { m_system.BeginFrame(); }
+
+	static void DrawDesktopMirror() { m_system.DrawDesktopMirror(); }
 
 	static void EndFrame() { m_system.EndFrame(); }
 

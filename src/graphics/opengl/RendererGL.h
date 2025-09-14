@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <optional>
 #include "graphics/RenderState.h"
 #include "graphics/Renderer.h"
 #include "graphics/Types.h"

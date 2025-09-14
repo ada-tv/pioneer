@@ -10,6 +10,7 @@
 #include "graphics/Types.h"
 #include "graphics/VertexBuffer.h"
 #include "profiler/Profiler.h"
+#include "../VRSystem.h"
 
 #include "imgui/imgui.h"
 
@@ -115,6 +116,12 @@ void InstanceRenderer::RenderDrawData(ImDrawData *draw_data, Graphics::Material*
 	int fb_height = (int)(fabs(draw_data->DisplaySize.y) * io.DisplayFramebufferScale.y);
 	if (fb_width <= 0 || fb_height <= 0)
 		return;
+
+	if (VR::IsActive()) {
+		fb_width = VR::hudResolution[0];
+		fb_height = VR::hudResolution[1];
+		draw_data->DisplaySize = {VR::hudResolution[0], VR::hudResolution[1]};
+	}
 
 	draw_data->ScaleClipRects(io.DisplayFramebufferScale);
 

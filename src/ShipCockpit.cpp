@@ -207,7 +207,7 @@ void ShipCockpit::RenderCockpit(Graphics::Renderer *renderer, const Camera *came
 	Body::SetFrame(frameId);
 	if (VR::IsActive()) {
 		auto translate = vector3d();
-		auto transform = matrix4x4d::Identity();
+		auto transform = matrix4x4d::Identity;
 		Render(renderer, camera, translate, transform);
 	} else {
 		Render(renderer, camera, m_translate, m_transform);

@@ -204,6 +204,7 @@ void Application::Run()
 			}
 
 			VR::EndFrame();
+			VR::DrawDesktopMirror();
 		} else {
 			m_activeLifecycle->Update(m_deltaTime);
 		}
