@@ -2,7 +2,9 @@
 // Licensed under the terms of the GPL v3. See licenses/GPL-3.txt
 
 #include <cstring>
+#include <array>
 
+#include "MathUtil.h"
 #include "graphics/Graphics.h"
 #include "graphics/opengl/RendererGL.h"
 #include "xr_linear.h"
@@ -107,20 +109,37 @@ bool VRSystem::Init() {
 		m_projectionLayerViews[i].subImage.imageRect.extent.height = m_configViews[i].recommendedImageRectHeight;
 	}
 
-	// hud quad layer
-	m_hudLayerView.size.width = hudLayerSize[0];
-	m_hudLayerView.size.height = hudLayerSize[1];
-	m_hudLayerView.eyeVisibility = XR_EYE_VISIBILITY_BOTH;
-	m_hudLayerView.layerFlags = XR_COMPOSITION_LAYER_BLEND_TEXTURE_SOURCE_ALPHA_BIT;
-	m_hudLayerView.pose.orientation = { 0.0f, 0.0f, 0.0f, 1.0f };
-	m_hudLayerView.pose.position = { 0.0f, 0.0f, -1.0f };
-	m_hudLayerView.subImage.swapchain = m_colorSwapchains[TARGET_HUD];
-	m_hudLayerView.subImage.imageArrayIndex = 0;
-	m_hudLayerView.subImage.imageRect.offset.x = 0;
-	m_hudLayerView.subImage.imageRect.offset.y = 0;
-	m_hudLayerView.subImage.imageRect.extent.width = VR::hudResolution[0];
-	m_hudLayerView.subImage.imageRect.extent.height = VR::hudResolution[1];
-	m_hudLayerView.space = m_refSpace;
+	// hud layer
+	if (m_cylinderSupported) {
+		m_hudLayerViewCylinder.centralAngle = DEG2RAD(90.0f);
+		m_hudLayerViewCylinder.radius = 1.0f;
+		m_hudLayerViewCylinder.aspectRatio = static_cast<float>(VR::hudResolution[0]) / static_cast<float>(VR::hudResolution[1]);
+		m_hudLayerViewCylinder.eyeVisibility = XR_EYE_VISIBILITY_BOTH;
+		m_hudLayerViewCylinder.layerFlags = XR_COMPOSITION_LAYER_BLEND_TEXTURE_SOURCE_ALPHA_BIT;
+		m_hudLayerViewCylinder.pose.orientation = { 0.0f, 0.0f, 0.0f, 1.0f };
+		m_hudLayerViewCylinder.pose.position = { 0.0f, 0.0f, 0.0f };
+		m_hudLayerViewCylinder.subImage.swapchain = m_colorSwapchains[TARGET_HUD];
+		m_hudLayerViewCylinder.subImage.imageArrayIndex = 0;
+		m_hudLayerViewCylinder.subImage.imageRect.offset.x = 0;
+		m_hudLayerViewCylinder.subImage.imageRect.offset.y = 0;
+		m_hudLayerViewCylinder.subImage.imageRect.extent.width = VR::hudResolution[0];
+		m_hudLayerViewCylinder.subImage.imageRect.extent.height = VR::hudResolution[1];
+		m_hudLayerViewCylinder.space = m_refSpace;
+	} else {
+		m_hudLayerViewQuad.size.width = hudLayerSize[0];
+		m_hudLayerViewQuad.size.height = hudLayerSize[1];
+		m_hudLayerViewQuad.eyeVisibility = XR_EYE_VISIBILITY_BOTH;
+		m_hudLayerViewQuad.layerFlags = XR_COMPOSITION_LAYER_BLEND_TEXTURE_SOURCE_ALPHA_BIT;
+		m_hudLayerViewQuad.pose.orientation = { 0.0f, 0.0f, 0.0f, 1.0f };
+		m_hudLayerViewQuad.pose.position = { 0.0f, 0.0f, -1.0f };
+		m_hudLayerViewQuad.subImage.swapchain = m_colorSwapchains[TARGET_HUD];
+		m_hudLayerViewQuad.subImage.imageArrayIndex = 0;
+		m_hudLayerViewQuad.subImage.imageRect.offset.x = 0;
+		m_hudLayerViewQuad.subImage.imageRect.offset.y = 0;
+		m_hudLayerViewQuad.subImage.imageRect.extent.width = VR::hudResolution[0];
+		m_hudLayerViewQuad.subImage.imageRect.extent.height = VR::hudResolution[1];
+		m_hudLayerViewQuad.space = m_refSpace;
+	}
 
 	// don't vsync to monitor refresh rate,
 	// openxr handles sync for us
@@ -131,19 +150,34 @@ bool VRSystem::Init() {
 }
 
 bool VRSystem::CreateSession() {
-	static const char *const extensions[] = {
+	std::vector<const char *> extensions = {
 		XR_KHR_OPENGL_ENABLE_EXTENSION_NAME,
 		XR_MNDX_EGL_ENABLE_EXTENSION_NAME,
 	};
 
 	XrResult result;
 
+	uint32_t propertyCount = 0;
+	result = xrEnumerateInstanceExtensionProperties(nullptr, 0, &propertyCount, nullptr);
+
+	std::vector<XrExtensionProperties> properties;
+	properties.resize(propertyCount, XrExtensionProperties { XR_TYPE_EXTENSION_PROPERTIES });
+
+	result = xrEnumerateInstanceExtensionProperties(nullptr, properties.size(), &propertyCount, properties.data());
+
+	for (const auto &prop : properties) {
+		if (std::strncmp(prop.extensionName, XR_KHR_COMPOSITION_LAYER_CYLINDER_EXTENSION_NAME, XR_MAX_EXTENSION_NAME_SIZE) == 0) {
+			extensions.push_back(XR_KHR_COMPOSITION_LAYER_CYLINDER_EXTENSION_NAME);
+			m_cylinderSupported = true;
+		}
+	}
+
 	XrInstanceCreateInfo instanceInfo = {XR_TYPE_INSTANCE_CREATE_INFO};
 	std::strncpy(instanceInfo.applicationInfo.applicationName, "Pioneer", XR_MAX_APPLICATION_NAME_SIZE - 1);
-	instanceInfo.applicationInfo.applicationVersion = XR_MAKE_VERSION(2025, 05, 01);
+	instanceInfo.applicationInfo.applicationVersion = XR_MAKE_VERSION(2026, 07, 10);
 	instanceInfo.applicationInfo.apiVersion = XR_API_VERSION_1_0;
-	instanceInfo.enabledExtensionNames = extensions;
-	instanceInfo.enabledExtensionCount = sizeof(extensions) / sizeof(extensions[0]);
+	instanceInfo.enabledExtensionNames = extensions.data();
+	instanceInfo.enabledExtensionCount = extensions.size();
 
 	result = xrCreateInstance(&instanceInfo, &m_xrInstance);
 	if (result) {
@@ -336,11 +370,21 @@ void VRSystem::BeginFrame() {
 		xrAcquireSwapchainImage(m_colorSwapchains[i], &acquireInfo, &colorImageIndex);
 		xrWaitSwapchainImage(m_colorSwapchains[i], &waitInfo);
 
+		static const std::array<uint8_t, 4> clearColor = {0, 0, 0, 0};
+
+		// NOTE: this has to be done here since the RHI command is run too late
+		glClearTexImage(
+			m_colorImages[i][colorImageIndex].image,
+			0,
+			GL_RGBA,
+			GL_UNSIGNED_BYTE,
+			clearColor.data()
+		);
+
 		m_renderTexturesColor[i].SetTextureID(m_colorImages[i][colorImageIndex].image);
 		m_renderTargets[i]->SetColorTexture(&m_renderTexturesColor[i]);
 
 		m_renderer->SetRenderTarget(m_renderTargets[i]);
-		m_renderer->ClearScreen(Color(0, 0, 0, 0), true);
 	}
 }
 
@@ -400,8 +444,12 @@ void VRSystem::EndFrame() {
 
 	XrCompositionLayerBaseHeader *layers[] = {
 		reinterpret_cast<XrCompositionLayerBaseHeader *>(&projectionLayer),
-		reinterpret_cast<XrCompositionLayerBaseHeader *>(&m_hudLayerView),
+		reinterpret_cast<XrCompositionLayerBaseHeader *>(&m_hudLayerViewQuad),
 	};
+
+	if (m_cylinderSupported) {
+		layers[1] = reinterpret_cast<XrCompositionLayerBaseHeader *>(&m_hudLayerViewCylinder);
+	}
 
 	XrFrameEndInfo frameEndInfo = {
 		XR_TYPE_FRAME_END_INFO,

@@ -85,6 +85,7 @@ protected:
 	Graphics::RenderTarget *m_renderTargets[RENDER_TARGET_COUNT];
 
 	bool m_readyToRender = false;
+	bool m_cylinderSupported = false;
 
 	XrInstance m_xrInstance;
 	XrSystemId m_xrSystemID;
@@ -101,7 +102,8 @@ protected:
 	XrView m_views[RENDER_TARGET_EYE_COUNT] = {{XR_TYPE_VIEW}, {XR_TYPE_VIEW}};
 	XrViewConfigurationView m_configViews[RENDER_TARGET_EYE_COUNT] = {{XR_TYPE_VIEW_CONFIGURATION_VIEW}, {XR_TYPE_VIEW_CONFIGURATION_VIEW}};
 	XrCompositionLayerProjectionView m_projectionLayerViews[RENDER_TARGET_EYE_COUNT] = {{XR_TYPE_COMPOSITION_LAYER_PROJECTION_VIEW}, {XR_TYPE_COMPOSITION_LAYER_PROJECTION_VIEW}};
-	XrCompositionLayerQuad m_hudLayerView = {XR_TYPE_COMPOSITION_LAYER_QUAD};
+	XrCompositionLayerQuad m_hudLayerViewQuad = {XR_TYPE_COMPOSITION_LAYER_QUAD};
+	XrCompositionLayerCylinderKHR m_hudLayerViewCylinder = {XR_TYPE_COMPOSITION_LAYER_CYLINDER_KHR};
 
 	XrSwapchain m_colorSwapchains[RENDER_TARGET_COUNT];
 	std::vector<XrSwapchainImageOpenGLKHR> m_colorImages[RENDER_TARGET_COUNT];
