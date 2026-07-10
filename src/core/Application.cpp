@@ -197,11 +197,13 @@ void Application::Run()
 		if (VR::ShouldRender()) {
 			VR::BeginFrame();
 
-			for (int i = 0; i < 2; i++) {
-				VR::SetActiveEye(i);
-				VR::SetupRenderingForEye(i);
-				m_activeLifecycle->Update(m_deltaTime / 2.0);
-			}
+			VR::SetActiveEye(0);
+			VR::SetupRenderingForEye(0);
+			m_activeLifecycle->Update(m_deltaTime);
+
+			VR::SetActiveEye(1);
+			VR::SetupRenderingForEye(1);
+			m_activeLifecycle->Update(std::numeric_limits<float>::epsilon());
 
 			VR::EndFrame();
 			VR::DrawDesktopMirror();
