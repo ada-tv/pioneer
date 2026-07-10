@@ -332,7 +332,7 @@ target_link_libraries(pioneer-lib PUBLIC pioneer-core)
 if (WITH_OPENXR)
     find_package(OpenXR REQUIRED)
     find_package(X11 REQUIRED)
-    target_link_libraries(pioneer-lib PUBLIC X11 openxr_loader)
+    target_link_libraries(pioneer-lib PUBLIC X11 OpenGL::EGL openxr_loader)
     add_definitions(-DPIONEER_OPENXR=1)
 endif()
 

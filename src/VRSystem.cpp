@@ -133,6 +133,7 @@ bool VRSystem::Init() {
 bool VRSystem::CreateSession() {
 	static const char *const extensions[] = {
 		XR_KHR_OPENGL_ENABLE_EXTENSION_NAME,
+		XR_MNDX_EGL_ENABLE_EXTENSION_NAME,
 	};
 
 	XrResult result;
@@ -176,12 +177,33 @@ bool VRSystem::CreateSession() {
 
 	sessionInfo.next = &graphicsBindingGL;
 	#elif defined(__linux__)
-	XrGraphicsBindingOpenGLXlibKHR graphicsBindingGL = {XR_TYPE_GRAPHICS_BINDING_OPENGL_XLIB_KHR};
-	graphicsBindingGL.xDisplay = XOpenDisplay(nullptr);
-	graphicsBindingGL.glxDrawable = glXGetCurrentDrawable();
-	graphicsBindingGL.glxContext = glXGetCurrentContext();
+	if (eglGetCurrentContext()) {
+		XrGraphicsBindingEGLMNDX graphicsBindingGL = {XR_TYPE_GRAPHICS_BINDING_EGL_MNDX};
+		graphicsBindingGL.context = eglGetCurrentContext();
+		graphicsBindingGL.display = eglGetCurrentDisplay();
+		graphicsBindingGL.getProcAddress = eglGetProcAddress;
 
-	sessionInfo.next = &graphicsBindingGL;
+		EGLint configCount;
+		eglGetConfigs(eglGetCurrentDisplay(), &graphicsBindingGL.config, 1, &configCount);
+
+		sessionInfo.next = &graphicsBindingGL;
+	} else {
+		auto *display = XOpenDisplay(nullptr);
+		int fbConfigCount;
+		auto *fbConfigs = glXGetFBConfigs(display, 0, &fbConfigCount);
+
+		XrGraphicsBindingOpenGLXlibKHR graphicsBindingGL = {XR_TYPE_GRAPHICS_BINDING_OPENGL_XLIB_KHR};
+
+		graphicsBindingGL.xDisplay = XOpenDisplay(nullptr);
+		graphicsBindingGL.glxDrawable = glXGetCurrentDrawable();
+		graphicsBindingGL.glxContext = glXGetCurrentContext();
+
+		// not actually used but monado complains otherwise
+		graphicsBindingGL.glxFBConfig = fbConfigs[0];
+		graphicsBindingGL.visualid = 1;
+
+		sessionInfo.next = &graphicsBindingGL;
+	}
 	#endif
 
 	result = xrCreateSession(m_xrInstance, &sessionInfo, &m_xrSession);

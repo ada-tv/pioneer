@@ -15,6 +15,9 @@
 #include <wingdi.h>
 #elif defined(__linux__)
 #define XR_USE_PLATFORM_XLIB
+#define XR_USE_PLATFORM_EGL
+
+#include <EGL/egl.h>
 
 // Xlib is such a pain
 #define Time Time_HorribleXLibHack
