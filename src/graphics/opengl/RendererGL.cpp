@@ -756,12 +756,7 @@ namespace Graphics {
 
 	bool RendererOGL::SetTransform(const matrix4x4f &m)
 	{
-		if (VR::IsActive() && !VR::IsRenderingHUD()) {
-			matrix4x4f vrMatrix = VR::GetEyeView(VR::ActiveEye());
-			m_modelViewMat = vrMatrix * m;
-		} else {
-			m_modelViewMat = m;
-		}
+		m_modelViewMat = m;
 		return true;
 	}
 

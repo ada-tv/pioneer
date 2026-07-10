@@ -68,9 +68,28 @@ void CameraContext::BeginFrame()
 	m_camFrame = Frame::CreateCameraFrame(m_frame);
 
 	Frame *camFrame = Frame::GetFrame(m_camFrame);
-	// move and orient it to the camera position
-	camFrame->SetOrient(m_orient, Pi::game ? Pi::game->GetTime() : 0.0);
-	camFrame->SetPosition(m_pos);
+
+	if (VR::IsActive()) {
+		auto xform = VR::GetEyeView(VR::ActiveEye());
+		auto pos = xform.GetTranslate();
+		auto orient = xform.GetOrient();
+
+		matrix3x3d orientd;
+
+		for (int i = 0; i < 9; i++) {
+			orientd.Data()[i] = orient.Data()[i];
+		}
+
+		orientd = m_orient * orientd.Inverse();
+		auto posd = orientd * vector3d(pos.x, pos.y, pos.z);
+
+		camFrame->SetOrient(orientd, Pi::game ? Pi::game->GetTime() : 0.0);
+		camFrame->SetPosition(m_pos - posd);
+	} else {
+		// move and orient it to the camera position
+		camFrame->SetOrient(m_orient, Pi::game ? Pi::game->GetTime() : 0.0);
+		camFrame->SetPosition(m_pos);
+	}
 
 	// make sure old orient and interpolated orient (rendering orient) are not rubbish
 	camFrame->ClearMovement();
@@ -91,12 +110,12 @@ void CameraContext::ApplyDrawTransforms(Graphics::Renderer *r)
 {
 	if (VR::IsActive()) {
 		r->SetProjection(VR::GetEyeProjection(VR::ActiveEye()));
-		r->SetTransform(VR::GetEyeView(VR::ActiveEye()));;
 	} else {
 		Graphics::SetFov(m_fovAng);
 		r->SetProjection(GetProjectionMatrix());
-		r->SetTransform(matrix4x4f::Identity);
 	}
+
+	r->SetTransform(matrix4x4f::Identity);
 }
 
 bool Camera::BodyAttrs::sort_BodyAttrs(const BodyAttrs &a, const BodyAttrs &b)
