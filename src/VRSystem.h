@@ -80,6 +80,7 @@ protected:
 
 	bool CreateSession();
 	bool CreateSwapchains();
+	XrResult CheckResult(XrResult result);
 
 	Graphics::Renderer *m_renderer;
 	Graphics::RenderTarget *m_renderTargets[RENDER_TARGET_COUNT];

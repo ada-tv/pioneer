@@ -45,6 +45,21 @@ VRSystem::VRSystem() :
 VRSystem::~VRSystem() {
 }
 
+XrResult VRSystem::CheckResult(XrResult result) {
+	if (XR_SUCCEEDED(result)) { return result; }
+
+	if (m_xrInstance) {
+		Log::Error("OpenXR: {}", static_cast<uint32_t>(result));
+	} else {
+		char name[XR_MAX_RESULT_STRING_SIZE] = {};
+		xrResultToString(m_xrInstance, result, name);
+
+		Log::Error("OpenXR: {} ({})", name, static_cast<uint32_t>(result));
+	}
+
+	return result;
+}
+
 matrix4x4f VRSystem::GetProjection(int eye) {
 	constexpr float nearZ = 0.05f;
 
@@ -70,8 +85,6 @@ matrix4x4f VRSystem::GetView(int eye) {
 }
 
 bool VRSystem::Init() {
-	XrResult result;
-
 	if (!CreateSession()) { return false; }
 
 	XrReferenceSpaceCreateInfo spaceInfo = {
@@ -80,22 +93,10 @@ bool VRSystem::Init() {
 		XR_REFERENCE_SPACE_TYPE_LOCAL,
 		{{0.0f, 0.0f, 0.0f, 1.0f}, {0.0f, 0.0f, 0.0f}}
 	};
-	result = xrCreateReferenceSpace(m_xrSession, &spaceInfo, &m_refSpace);
-	if (result) {
-		char buffer[XR_MAX_RESULT_STRING_SIZE];
-		xrResultToString(m_xrInstance, result, buffer);
-		Log::Fatal("xrCreateReferenceSpace: {}", buffer);
-		return false;
-	}
+	CheckResult(xrCreateReferenceSpace(m_xrSession, &spaceInfo, &m_refSpace));
 
 	uint32_t viewConfigCount = 2;
-	result = xrEnumerateViewConfigurationViews(m_xrInstance, m_xrSystemID, XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO, viewConfigCount, &viewConfigCount, m_configViews);
-	if (result) {
-		char buffer[XR_MAX_RESULT_STRING_SIZE];
-		xrResultToString(m_xrInstance, result, buffer);
-		Log::Fatal("xrEnumerateViewConfigurationViews: {}", buffer);
-		return false;
-	}
+	CheckResult(xrEnumerateViewConfigurationViews(m_xrInstance, m_xrSystemID, XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO, viewConfigCount, &viewConfigCount, m_configViews));
 
 	if (!CreateSwapchains()) { return false; }
 
@@ -155,15 +156,13 @@ bool VRSystem::CreateSession() {
 		XR_MNDX_EGL_ENABLE_EXTENSION_NAME,
 	};
 
-	XrResult result;
-
 	uint32_t propertyCount = 0;
-	result = xrEnumerateInstanceExtensionProperties(nullptr, 0, &propertyCount, nullptr);
+	CheckResult(xrEnumerateInstanceExtensionProperties(nullptr, 0, &propertyCount, nullptr));
 
 	std::vector<XrExtensionProperties> properties;
 	properties.resize(propertyCount, XrExtensionProperties { XR_TYPE_EXTENSION_PROPERTIES });
 
-	result = xrEnumerateInstanceExtensionProperties(nullptr, properties.size(), &propertyCount, properties.data());
+	CheckResult(xrEnumerateInstanceExtensionProperties(nullptr, properties.size(), &propertyCount, properties.data()));
 
 	for (const auto &prop : properties) {
 		if (std::strncmp(prop.extensionName, XR_KHR_COMPOSITION_LAYER_CYLINDER_EXTENSION_NAME, XR_MAX_EXTENSION_NAME_SIZE) == 0) {
@@ -174,25 +173,18 @@ bool VRSystem::CreateSession() {
 
 	XrInstanceCreateInfo instanceInfo = {XR_TYPE_INSTANCE_CREATE_INFO};
 	std::strncpy(instanceInfo.applicationInfo.applicationName, "Pioneer", XR_MAX_APPLICATION_NAME_SIZE - 1);
-	instanceInfo.applicationInfo.applicationVersion = XR_MAKE_VERSION(2026, 07, 10);
 	instanceInfo.applicationInfo.apiVersion = XR_API_VERSION_1_0;
 	instanceInfo.enabledExtensionNames = extensions.data();
 	instanceInfo.enabledExtensionCount = extensions.size();
 
-	result = xrCreateInstance(&instanceInfo, &m_xrInstance);
-	if (result) {
-		Log::Fatal("xrCreateInstance");
+	if (CheckResult(xrCreateInstance(&instanceInfo, &m_xrInstance))) {
 		return false;
 	}
 
 	XrSystemGetInfo systemInfo = {XR_TYPE_SYSTEM_GET_INFO};
 	systemInfo.formFactor = XR_FORM_FACTOR_HEAD_MOUNTED_DISPLAY;
 
-	result = xrGetSystem(m_xrInstance, &systemInfo, &m_xrSystemID);
-	if (result) {
-		char buffer[XR_MAX_RESULT_STRING_SIZE];
-		xrResultToString(m_xrInstance, result, buffer);
-		Log::Fatal("xrGetSystem: {}", buffer);
+	if (CheckResult(xrGetSystem(m_xrInstance, &systemInfo, &m_xrSystemID))) {
 		return false;
 	}
 
@@ -240,11 +232,7 @@ bool VRSystem::CreateSession() {
 	}
 	#endif
 
-	result = xrCreateSession(m_xrInstance, &sessionInfo, &m_xrSession);
-	if (result) {
-		char buffer[XR_MAX_RESULT_STRING_SIZE];
-		xrResultToString(m_xrInstance, result, buffer);
-		Log::Fatal("xrCreateSession: {}", buffer);
+	if (CheckResult(xrCreateSession(m_xrInstance, &sessionInfo, &m_xrSession))) {
 		return false;
 	}
 
@@ -302,11 +290,7 @@ bool VRSystem::CreateSwapchains() {
 	swapchainInfo.arraySize = 1;
 	swapchainInfo.mipCount = 1;
 
-	XrResult result = xrCreateSwapchain(m_xrSession, &swapchainInfo, &m_colorSwapchains[TARGET_HUD]);
-	if (result) {
-		char buffer[XR_MAX_RESULT_STRING_SIZE];
-		xrResultToString(m_xrInstance, result, buffer);
-		Log::Fatal("xrCreateSwapchain: {}", buffer);
+	if (CheckResult(xrCreateSwapchain(m_xrSession, &swapchainInfo, &m_colorSwapchains[TARGET_HUD]))) {
 		return false;
 	}
 
@@ -349,12 +333,7 @@ void VRSystem::BeginFrame() {
 	};
 
 	uint32_t dummy;
-	XrResult result = xrLocateViews(m_xrSession, &viewLocateInfo, &m_viewState, 2, &dummy, m_views);
-	if (result) {
-		char buffer[XR_MAX_RESULT_STRING_SIZE];
-		xrResultToString(m_xrInstance, result, buffer);
-		Log::Fatal("xrLocateViews: {}", buffer);
-	}
+	CheckResult(xrLocateViews(m_xrSession, &viewLocateInfo, &m_viewState, 2, &dummy, m_views));
 
 	for (int i = 0; i < RENDER_TARGET_COUNT; i++) {
 		// only update the poses for the eye views, not the hud
@@ -460,14 +439,7 @@ void VRSystem::EndFrame() {
 		layers
 	};
 
-	XrResult result = xrEndFrame(m_xrSession, &frameEndInfo);
-	if (result) {
-		char buffer[XR_MAX_RESULT_STRING_SIZE];
-		xrResultToString(m_xrInstance, result, buffer);
-		Log::Error("xrEndFrame: {}", buffer);
-	}
-
-	Log::Debug("VrSystem::EndFrame");
+	CheckResult(xrEndFrame(m_xrSession, &frameEndInfo));
 }
 
 bool VRSystem::ShouldRender() const {
@@ -478,7 +450,7 @@ bool VRSystem::ShouldRender() const {
 
 void VRSystem::Update() {
 	XrEventDataBuffer eventData{XR_TYPE_EVENT_DATA_BUFFER};
-	XrResult pollResult = xrPollEvent(m_xrInstance, &eventData);
+	XrResult pollResult = CheckResult(xrPollEvent(m_xrInstance, &eventData));
 
 	while (pollResult == XR_SUCCESS) {
 		switch (eventData.type) {
@@ -505,12 +477,7 @@ void VRSystem::Update() {
 
 					Log::Debug("OpenXR session beginning");
 
-					XrResult result = xrBeginSession(m_xrSession, &beginInfo);
-					if (result) {
-						char buffer[XR_MAX_RESULT_STRING_SIZE];
-						xrResultToString(m_xrInstance, result, buffer);
-						Log::Error("xrBeginSession: {}", buffer);
-					}
+					CheckResult(xrBeginSession(m_xrSession, &beginInfo));
 				} else if (m_sessionState == XR_SESSION_STATE_STOPPING) {
 					Log::Debug("OpenXR session stopping");
 					xrEndSession(m_xrSession);
