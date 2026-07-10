@@ -6,6 +6,7 @@
 #include "Pi.h"
 #include "graphics/Renderer.h"
 #include "scenegraph/SceneGraph.h"
+#include "VRSystem.h"
 
 Tombstone::Tombstone(Graphics::Renderer *r, int width, int height) :
 	Cutscene(r, width, height)
@@ -23,8 +24,14 @@ void Tombstone::Draw(float _time)
 {
 	m_renderer->ClearScreen(Color::BLACK);
 
-	m_renderer->SetPerspectiveProjection(75, m_aspectRatio, 1.f, 10000.f);
-	m_renderer->SetTransform(matrix4x4f::Identity);
+	if (VR::IsActive()) {
+		int eye = VR::ActiveEye();
+		m_renderer->SetProjection(VR::GetEyeProjection(eye));
+		m_renderer->SetTransform(VR::GetEyeView(eye));
+	} else {
+		m_renderer->SetPerspectiveProjection(75, m_aspectRatio, 1.f, 10000.f);
+		m_renderer->SetTransform(matrix4x4f::Identity);
+	}
 
 	m_renderer->SetAmbientColor(m_ambientColor);
 	m_renderer->SetLights(m_lights.size(), &m_lights[0]);

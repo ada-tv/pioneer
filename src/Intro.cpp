@@ -139,8 +139,14 @@ void Intro::Draw(float deltaTime)
 
 	Graphics::Renderer::StateTicket ticket(m_renderer);
 
-	m_renderer->SetPerspectiveProjection(75, m_aspectRatio, 1.f, 10000.f);
-	m_renderer->SetTransform(matrix4x4f::Identity);
+	if (VR::IsActive()) {
+		int eye = VR::ActiveEye();
+		m_renderer->SetProjection(VR::GetEyeProjection(eye));
+		m_renderer->SetTransform(VR::GetEyeView(eye));
+	} else {
+		m_renderer->SetPerspectiveProjection(75, m_aspectRatio, 1.f, 10000.f);
+		m_renderer->SetTransform(matrix4x4f::Identity);
+	}
 
 	m_renderer->SetAmbientColor(m_ambientColor);
 
@@ -151,19 +157,31 @@ void Intro::Draw(float deltaTime)
 	// XXX all this stuff will be gone when intro uses a Camera
 	// rotate background by time, and a bit extra Z so it's not so flat
 	matrix4x4d brot = matrix4x4d::Identity;
-	if (!VR::IsActive()) {
+	if (VR::IsActive()) {
+		auto view = VR::GetEyeView(VR::ActiveEye());
+
+		for (int i = 0; i < 16; i++) {
+			brot.Data()[i] = view.Data()[i];
+		}
+	} else {
 		brot = matrix4x4d::RotateXMatrix(-0.25 * Pi::GetApp()->GetTime()) * matrix4x4d::RotateZMatrix(0.6);
 	}
 	m_renderer->ClearDepthBuffer();
 	m_background->Draw(brot);
 
-	m_renderer->SetViewport({ m_spinnerLeft, 0, m_spinnerWidth, m_renderer->GetWindowHeight() });
-	m_renderer->SetPerspectiveProjection(75, m_spinnerRatio, 1.f, 10000.f);
+	if (!VR::IsActive()) {
+		m_renderer->SetViewport({ m_spinnerLeft, 0, m_spinnerWidth, m_renderer->GetWindowHeight() });
+		m_renderer->SetPerspectiveProjection(75, m_spinnerRatio, 1.f, 10000.f);
+	}
 
 	matrix4x4f trans =
 		matrix4x4f::Translation(0, 0, m_dist) *
 		matrix4x4f::RotateXMatrix(DEG2RAD(-15.0f)) *
 		matrix4x4f::RotateYMatrix(VR::IsActive() ? duration * 0.2f : duration);
+
+	if (VR::IsActive()) {
+		trans = VR::GetEyeView(VR::ActiveEye()) * trans;
+	}
 
 	m_model->SetThrust(vector3f(0.3f * sin(duration), 0.f, -0.6 * cos(duration)), vector3f(0.f));
 	m_model->SetRenderTime(duration);
