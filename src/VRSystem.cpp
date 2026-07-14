@@ -5,18 +5,15 @@
 #include <array>
 
 #include "MathUtil.h"
+#include "Quaternion.h"
 #include "graphics/Graphics.h"
 #include "graphics/opengl/RendererGL.h"
-#include "xr_linear.h"
 
 #include "core/Log.h"
 #include "graphics/RenderTarget.h"
 #include "graphics/Renderer.h"
 #include "Pi.h"
-#include <openxr/openxr.h>
 #include "VRSystem.h"
-
-#pragma GCC diagnostic ignored "-Wmissing-field-initializers"
 
 VRSystem VR::m_system;
 bool VR::m_isActive = false;
@@ -63,25 +60,41 @@ XrResult VRSystem::CheckResult(XrResult result) {
 matrix4x4f VRSystem::GetProjection(int eye) {
 	constexpr float nearZ = 0.05f;
 
-	// D3D matrix because we're using Y-up, 0,1 NDC rather than Y-up -1,1 NDC,
-	// far can be any negative number and CreateProjectionFov will make an infinite projection
-	XrMatrix4x4f proj;
-	XrMatrix4x4f_CreateProjectionFov(&proj, GRAPHICS_D3D, m_views[eye].fov, nearZ, -1000.0f);
+	auto fov = m_views[eye].fov;
+	fov.angleLeft = std::tan(fov.angleLeft);
+	fov.angleRight = std::tan(fov.angleRight);
+	fov.angleDown = std::tan(fov.angleDown);
+	fov.angleUp = std::tan(fov.angleUp);
 
-	// weird magic that has to be here or the depth breaks
-	proj.m[10] = 0.0f;
-	proj.m[14] = nearZ;
+	auto fovX = fov.angleRight - fov.angleLeft;
+	auto fovY = fov.angleUp - fov.angleDown;
 
-	return matrix4x4f(proj.m);
+	auto halfX = 2.0f / fovX;
+	auto halfY = 2.0f / fovY;
+
+	auto deltaX = (fov.angleRight + fov.angleLeft) / fovX;
+	auto deltaY = (fov.angleUp + fov.angleDown) / fovY;
+
+	float mat[16] = {
+		halfX,  0.0f,   0.0f,   0.0f,
+		0.0f,   halfY,  0.0f,   0.0f,
+		deltaX, deltaY, 0.0f,  -1.0f,
+		0.0f,   0.0f,   nearZ,  0.0f,
+	};
+
+	return matrix4x4f(mat);
 }
 
 matrix4x4f VRSystem::GetView(int eye) {
-	XrVector3f scale = {1.0f, 1.0f, 1.0f};
-	XrMatrix4x4f view, toView;
-	XrMatrix4x4f_CreateTranslationRotationScale(&toView, &m_views[eye].pose.position, &m_views[eye].pose.orientation, &scale);
-	XrMatrix4x4f_InvertRigidBody(&view, &toView);
+	auto pos = m_views[eye].pose.position;
+	auto orient = m_views[eye].pose.orientation;
+	auto orientMat = Quaternionf(orient.w, orient.x, orient.y, orient.z).ToMatrix3x3<float>();
 
-	return matrix4x4f(view.m);
+	auto mat = matrix4x4f::Identity;
+	mat.LoadFrom3x3Matrix(orientMat.Data());
+	mat.SetTranslate(vector3f(pos.x, pos.y, pos.z));
+
+	return mat.Inverse();
 }
 
 bool VRSystem::Init() {
