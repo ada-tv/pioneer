@@ -187,36 +187,47 @@ void Application::Run()
 		if (!m_activeLifecycle)
 			break;
 
-		BeginFrame();
-
-		// The PreUpdate hook should be used for setting up per-frame state, etc.
-		PreUpdate();
-
 		VR::Update();
 
-		if (VR::ShouldRender()) {
+		if (VR::IsActive()) {
 			VR::BeginFrame();
+			BeginFrame();
 
-			VR::SetActiveEye(0);
-			VR::SetupRenderingForEye(0);
-			m_activeLifecycle->Update(m_deltaTime);
+			for (int i = 0; i < 2; i++) {
+				VR::SetActiveEye(i);
 
-			VR::SetActiveEye(1);
-			VR::SetupRenderingForEye(1);
-			m_activeLifecycle->Update(std::numeric_limits<float>::epsilon());
+				VR::SetupRenderingForEye(i);
 
+				PreUpdate();
+
+				m_activeLifecycle->Update(i == 0 ? m_deltaTime : std::numeric_limits<float>::epsilon());
+
+				if (i == 0) {
+					HandleJobs();
+				}
+
+				// The PostUpdate hook should be used for finalizing per-frame state, rendering, etc.
+				PostUpdate();
+			}
+
+			EndFrame();
 			VR::EndFrame();
 			VR::DrawDesktopMirror();
 		} else {
+			BeginFrame();
+
+			// The PreUpdate hook should be used for setting up per-frame state, etc.
+			PreUpdate();
+
 			m_activeLifecycle->Update(m_deltaTime);
+
+			HandleJobs();
+
+			// The PostUpdate hook should be used for finalizing per-frame state, rendering, etc.
+			PostUpdate();
+
+			EndFrame();
 		}
-
-		HandleJobs();
-
-		// The PostUpdate hook should be used for finalizing per-frame state, rendering, etc.
-		PostUpdate();
-
-		EndFrame();
 
 #ifdef PIONEER_PROFILER
 		const bool profileReset = (m_activeLifecycle && !m_activeLifecycle->m_profilerAccumulate);

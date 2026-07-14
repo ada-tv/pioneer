@@ -8,6 +8,7 @@
 
 #include <SDL.h>
 #include <SDL_video.h>
+#include "VRSystem.h"
 #include "core/Log.h"
 #include "graphics/Drawables.h"
 #include "graphics/Graphics.h"
@@ -31,11 +32,13 @@ void GuiApplication::BeginFrame()
 {
 	PROFILE_SCOPED()
 
-	m_renderer->SetRenderTarget(m_renderTarget.get());
-	m_renderer->SetViewport({ 0, 0, m_renderer->GetWindowWidth(), m_renderer->GetWindowHeight() });
-	m_renderer->ClearScreen();
+	if (!VR::IsActive()) {
+		m_renderer->SetRenderTarget(m_renderTarget.get());
+		m_renderer->SetViewport({ 0, 0, m_renderer->GetWindowWidth(), m_renderer->GetWindowHeight() });
+		m_renderer->ClearScreen();
+		m_renderer->BeginFrame();
+	}
 
-	m_renderer->BeginFrame();
 	m_input->NewFrame();
 }
 
@@ -43,9 +46,11 @@ void GuiApplication::EndFrame()
 {
 	PROFILE_SCOPED()
 
-	m_renderer->FlushCommandBuffers();
-	m_renderer->EndFrame();
-	m_renderer->SwapBuffers();
+	if (!VR::IsActive()) {
+		m_renderer->FlushCommandBuffers();
+		m_renderer->EndFrame();
+		m_renderer->SwapBuffers();
+	}
 }
 
 Graphics::RenderTarget *GuiApplication::CreateRenderTarget(const Graphics::Settings &settings)

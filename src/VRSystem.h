@@ -68,6 +68,7 @@ public:
 	void EndFrame();
 
 	void SetRenderer(Graphics::Renderer *renderer) { m_renderer = renderer; }
+	Graphics::RenderTarget *GetRenderTarget(int eye) { return m_renderTargets[eye]; }
 
 protected:
 	static constexpr float hudLayerSize[2] = {2.0f, 2.0f / (16.0f / 9.0f)};
@@ -152,6 +153,14 @@ public:
 	static matrix4x4f GetEyeProjection(int eye) { return m_system.GetProjection(eye); }
 
 	static matrix4x4f GetEyeView(int eye) { return m_system.GetView(eye); }
+
+	static Graphics::RenderTarget *GetEyeRenderTarget(int eye) {
+		return m_system.GetRenderTarget(eye);
+	}
+
+	static Graphics::RenderTarget *GetHUDRenderTarget() {
+		return m_system.GetRenderTarget(2);
+	}
 
 private:
 	friend class VRSystem;

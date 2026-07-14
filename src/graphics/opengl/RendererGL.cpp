@@ -665,11 +665,7 @@ namespace Graphics {
 
 	RenderTarget *RendererOGL::GetRenderTarget()
 	{
-		if (m_renderTargetOverride) {
-			return m_renderTargetOverride;
-		} else {
-			return m_activeRenderTarget;
-		}
+		return m_activeRenderTarget;
 	}
 
 	bool RendererOGL::SetRenderTarget(RenderTarget *rt)
@@ -677,12 +673,7 @@ namespace Graphics {
 		PROFILE_SCOPED()
 		FlushCommandBuffers();
 
-		if (m_renderTargetOverride) {
-			m_activeRenderTarget = static_cast<OGL::RenderTarget *>(m_renderTargetOverride);
-		} else {
-			m_activeRenderTarget = static_cast<OGL::RenderTarget *>(rt);
-		}
-
+		m_activeRenderTarget = static_cast<OGL::RenderTarget *>(rt);
 		m_drawCommandList->AddRenderPassCmd(m_activeRenderTarget, m_viewport);
 
 		CheckRenderErrors(__FUNCTION__, __LINE__);
@@ -745,11 +736,7 @@ namespace Graphics {
 
 	bool RendererOGL::SetViewport(ViewportExtents v)
 	{
-		if (m_viewportOverride.has_value()) {
-			m_viewport = m_viewportOverride.value();
-		} else {
-			m_viewport = v;
-		}
+		m_viewport = v;
 		m_drawCommandList->AddRenderPassCmd(m_activeRenderTarget, m_viewport);
 		return true;
 	}

@@ -15,6 +15,8 @@
 #include "Pi.h"
 #include "VRSystem.h"
 
+#pragma GCC diagnostic ignored "-Wmissing-field-initializers"
+
 VRSystem VR::m_system;
 bool VR::m_isActive = false;
 int VR::m_activeEye = 0;
@@ -131,7 +133,7 @@ bool VRSystem::Init() {
 		m_hudLayerViewCylinder.eyeVisibility = XR_EYE_VISIBILITY_BOTH;
 		m_hudLayerViewCylinder.layerFlags = XR_COMPOSITION_LAYER_BLEND_TEXTURE_SOURCE_ALPHA_BIT;
 		m_hudLayerViewCylinder.pose.orientation = { 0.0f, 0.0f, 0.0f, 1.0f };
-		m_hudLayerViewCylinder.pose.position = { 0.0f, 0.0f, 0.0f };
+		m_hudLayerViewCylinder.pose.position = { 0.0f, -0.1f, 0.0f };
 		m_hudLayerViewCylinder.subImage.swapchain = m_colorSwapchains[TARGET_HUD];
 		m_hudLayerViewCylinder.subImage.imageArrayIndex = 0;
 		m_hudLayerViewCylinder.subImage.imageRect.offset.x = 0;
@@ -145,7 +147,7 @@ bool VRSystem::Init() {
 		m_hudLayerViewQuad.eyeVisibility = XR_EYE_VISIBILITY_BOTH;
 		m_hudLayerViewQuad.layerFlags = XR_COMPOSITION_LAYER_BLEND_TEXTURE_SOURCE_ALPHA_BIT;
 		m_hudLayerViewQuad.pose.orientation = { 0.0f, 0.0f, 0.0f, 1.0f };
-		m_hudLayerViewQuad.pose.position = { 0.0f, 0.0f, -1.0f };
+		m_hudLayerViewQuad.pose.position = { 0.0f, -0.1f, -1.0f };
 		m_hudLayerViewQuad.subImage.swapchain = m_colorSwapchains[TARGET_HUD];
 		m_hudLayerViewQuad.subImage.imageArrayIndex = 0;
 		m_hudLayerViewQuad.subImage.imageRect.offset.x = 0;
@@ -364,7 +366,7 @@ void VRSystem::BeginFrame() {
 
 		static const std::array<uint8_t, 4> clearColor = {0, 0, 0, 0};
 
-		// NOTE: this has to be done here since the RHI command is run too late
+		// FIXME: do this on the renderer instead of directly
 		glClearTexImage(
 			m_colorImages[i][colorImageIndex].image,
 			0,
@@ -375,46 +377,45 @@ void VRSystem::BeginFrame() {
 
 		m_renderTexturesColor[i].SetTextureID(m_colorImages[i][colorImageIndex].image);
 		m_renderTargets[i]->SetColorTexture(&m_renderTexturesColor[i]);
-
-		m_renderer->SetRenderTarget(m_renderTargets[i]);
 	}
 }
 
 void VRSystem::DrawDesktopMirror() {
-	// FIXME: can't scale unresolved MSAA targets
-	// and even the hud doesn't get copied
-#if 0
 	// copy to the desktop window
 	auto desktop_rt = Pi::GetApp()->GetRenderTarget();
 
-	auto desktop_rt_desc = desktop_rt->GetDesc();
+	m_renderer->SetRenderTarget(desktop_rt);
+	m_renderer->SetViewport({0, 0, m_renderer->GetWindowWidth(), m_renderer->GetWindowHeight()});
+	m_renderer->ClearScreen();
+	m_renderer->BeginFrame();
 
-	auto left_desc = m_renderTargets[TARGET_LEFT]->GetDesc();
-	auto right_desc = m_renderTargets[TARGET_LEFT]->GetDesc();
+	auto right_desc = m_renderTargets[TARGET_RIGHT]->GetDesc();
 
-	m_renderer->CopyRenderTarget(
-		m_renderTargets[TARGET_LEFT],
-		desktop_rt,
-		{0, 0, left_desc.width, left_desc.height},
-		{0, 0, left_desc.width, left_desc.height}
-	);
+	auto ww = m_renderer->GetWindowWidth();
+	auto wh = m_renderer->GetWindowHeight();
+
+	auto w = std::min(ww, (int)right_desc.width);
+	auto h = std::min(wh, (int)right_desc.height);
+	auto x = ((int)right_desc.width - ww) / 2;
+	auto y = ((int)right_desc.height - wh) / 2;
 
 	m_renderer->CopyRenderTarget(
 		m_renderTargets[TARGET_RIGHT],
 		desktop_rt,
-		{0, 0, right_desc.width, right_desc.height},
-		{0, 0, right_desc.width, right_desc.height}
+		{x, y, w, h},
+		{0, 0, ww, wh}
 	);
 
-	m_renderer->CopyRenderTarget(
+	/*m_renderer->CopyRenderTarget(
 		m_renderTargets[TARGET_HUD],
 		desktop_rt,
 		{0, 0, VR::hudResolution[0], VR::hudResolution[1]},
 		{0, 0, VR::hudResolution[0], VR::hudResolution[1]}
-	);
+	);*/
 
 	m_renderer->FlushCommandBuffers();
-#endif
+	m_renderer->EndFrame();
+	m_renderer->SwapBuffers();
 }
 
 void VRSystem::EndFrame() {
@@ -523,23 +524,21 @@ void VRSystem::Update() {
 
 void VRSystem::SetupRenderingForEye(int eye) {
 	auto &renderer = *static_cast<Graphics::RendererOGL *>(m_renderer);
-	renderer.m_viewportOverride = Graphics::ViewportExtents(
+	auto viewport = Graphics::ViewportExtents(
 		m_projectionLayerViews[eye].subImage.imageRect.offset.x,
 		m_projectionLayerViews[eye].subImage.imageRect.offset.y,
 		m_projectionLayerViews[eye].subImage.imageRect.extent.width,
 		m_projectionLayerViews[eye].subImage.imageRect.extent.height
 	);
-	renderer.m_renderTargetOverride = m_renderTargets[eye];
-	renderer.SetRenderTarget(renderer.m_renderTargetOverride);
-	renderer.SetViewport(*renderer.m_viewportOverride);
+	renderer.SetRenderTarget(m_renderTargets[eye]);
+	renderer.SetViewport(viewport);
 }
 
 void VRSystem::SetupRenderingForHUD() {
 	auto &renderer = *static_cast<Graphics::RendererOGL *>(m_renderer);
-	renderer.m_viewportOverride = Graphics::ViewportExtents(
+	auto viewport = Graphics::ViewportExtents(
 		0, 0, VR::hudResolution[0], VR::hudResolution[1]
 	);
-	renderer.m_renderTargetOverride = m_renderTargets[TARGET_HUD];
-	renderer.SetRenderTarget(renderer.m_renderTargetOverride);
-	renderer.SetViewport(*renderer.m_viewportOverride);
+	renderer.SetRenderTarget(m_renderTargets[TARGET_HUD]);
+	renderer.SetViewport(viewport);
 }
